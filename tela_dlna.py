@@ -98,13 +98,15 @@ def ffmpeg_cmd(w, h, audio):
            "-video_size", f"{w}x{h}", "-i", "desktop"]
     if audio:
         cmd += ["-f", "s16le", "-ar", "48000", "-ac", "2", "-thread_queue_size", "4096", "-i", "pipe:0"]
-    cmd += ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-pix_fmt", "yuv420p",
-            "-g", str(FPS * 2), "-b:v", "6M", "-maxrate", "6M", "-bufsize", "8M"]
+    # 720p + ~3 Mbps + perfil main: leve pra Wi-Fi e compatível com a maioria das TVs (evita travar)
+    cmd += ["-vf", "scale=-2:720", "-r", str(FPS),
+            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+            "-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p",
+            "-g", str(FPS * 2), "-b:v", "3M", "-maxrate", "3M", "-bufsize", "6M"]
     if audio:
-        # começa os dois em ~0 e não deixa o muxer travar esperando um stream: evita o "carregando sem fim"
+        # vídeo e áudio começam em ~0 (senão a TV fica "carregando sem fim")
         cmd += ["-c:a", "aac", "-b:a", "128k", "-ac", "2", "-map", "0:v:0", "-map", "1:a:0",
-                "-af", "aresample=async=1:first_pts=0",
-                "-muxdelay", "0", "-muxpreload", "0", "-max_interleave_delta", "0"]
+                "-af", "aresample=async=1:first_pts=0", "-muxdelay", "0", "-muxpreload", "0"]
     cmd += ["-f", "mpegts", "pipe:1"]
     return cmd
 
@@ -226,6 +228,11 @@ def do_stop():
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "parar":
         do_stop()
+        return 0
+    # trava de instância única: se já tem uma transmissão rodando, não sobe outra (evita duas brigando pela TV)
+    ctypes.windll.kernel32.CreateMutexW(None, False, "ClaudePC.TelaDLNA")
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        print("Já tem uma transmissão rodando.")
         return 0
     ctrl = find_renderer()
     if not ctrl:
