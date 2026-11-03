@@ -63,9 +63,27 @@ def connect():
     if os.path.exists(TOKEN_FILE):
         url += "&token=" + open(TOKEN_FILE).read().strip()
     ws = websocket.create_connection(url, sslopt={"cert_reqs": ssl.CERT_NONE}, timeout=30)
-    msg = json.loads(ws.recv())
-    if msg.get("event") != "ms.channel.connect":
-        raise SystemExit("TV recusou a conexão: " + str(msg.get("event")))
+    ws.settimeout(30)
+    # a TV às vezes manda outros eventos (ms.remote.touchDisable…) antes do "connect":
+    # lê até chegar o connect, em vez de desistir na primeira mensagem.
+    for _ in range(8):
+        try:
+            msg = json.loads(ws.recv())
+        except Exception:  # noqa: BLE001
+            break
+        ev = msg.get("event")
+        if ev == "ms.channel.unauthorized":
+            ws.close()
+            raise SystemExit("A TV recusou a autorização.")
+        if ev == "ms.channel.connect":
+            token = (msg.get("data") or {}).get("token")  # guarda o token pra não pedir de novo
+            if token:
+                try:
+                    with open(TOKEN_FILE, "w") as f:
+                        f.write(str(token))
+                except OSError:
+                    pass
+            return ws
     return ws
 
 

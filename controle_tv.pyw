@@ -618,14 +618,14 @@ class RemoteWindow(QWidget):
         self.remote.macro(["KEY_ENTER", 0.5, "KEY_ENTER"], "Tela cheia")
 
     def show_pc_screen(self):
-        # ligar_tela_tv starts the stream if needed and types its address into the TV browser
-        subprocess.Popen([sys.executable, os.path.join(HERE, "ligar_tela_tv.pyw")], cwd=HERE,
+        # tela_dlna manda a tela (com som) pro player da TV por DLNA — sem navegador e sem "Permitir"
+        subprocess.Popen([sys.executable, os.path.join(HERE, "tela_dlna.py")], cwd=HERE,
                          creationflags=subprocess.CREATE_NO_WINDOW)
         self.last_app = "Tela do PC"
-        self.show_result(True, "Abrindo a tela do PC na TV (uns 20 s)")
+        self.show_result(True, "Mandando a tela (com som) pra TV…")
 
     def stop_pc_screen(self):
-        subprocess.Popen([sys.executable, os.path.join(HERE, "desligar_tela_tv.pyw")], cwd=HERE,
+        subprocess.Popen([sys.executable, os.path.join(HERE, "tela_dlna.py"), "parar"], cwd=HERE,
                          creationflags=subprocess.CREATE_NO_WINDOW)
         self.last_app = None
         self.show_result(True, "Tela do PC encerrada")

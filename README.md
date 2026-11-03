@@ -12,20 +12,21 @@ Feito em Python + PyQt6. Funciona no Windows.
 - **Controle remoto da TV** (`controle_tv.pyw`): janela sempre-no-topo opcional, ícone na bandeja,
   atalhos de teclado, busca de canais. Conversa com a TV pelo protocolo da Samsung
   (websocket `:8002` + API REST `:8001`).
-- **Tela do PC na TV, com som** (`tela_tv.py`): espelha a tela do PC no navegador da TV via MJPEG,
-  e manda o **áudio do sistema** junto (capturado por loopback e recomprimido em MP3 pelo ffmpeg).
-  Ótimo pra ver um vídeo/aula do PC na tela grande sem perder o som.
+- **Tela do PC na TV, com som** (`tela_dlna.py`): manda a tela do PC (com o **áudio do sistema**)
+  pro player da TV por **DLNA** — o mesmo jeito que apps de mídia enviam filme. A tela é capturada
+  pelo ffmpeg (H.264) e o som pelo loopback do alto-falante, juntos num MPEG-TS ao vivo. Ótimo pra
+  ver um vídeo/aula do PC na telona sem perder o som. **Não usa o navegador da TV nem pede
+  "Permitir"** — importante pra quem não tem o controle físico pra aceitar o aviso.
 
 > **Sobre "qualquer TV":** os *botões* do controle são específicos da Samsung (cada marca usa um
-> protocolo próprio — LG, Roku, Android TV etc.). Já a parte de **espelhar a tela com som**
-> (`tela_tv.py`) é genérica: ela só serve uma página HTTP, então funciona em **qualquer** TV, celular
-> ou PC com navegador — é só abrir `http://IP-DO-PC:8090/`.
+> protocolo próprio — LG, Roku, Android TV etc.). Já a parte de **mandar a tela com som**
+> (`tela_dlna.py`) usa DLNA/UPnP, que a maioria das TVs (e caixas de mídia) entende.
 
 ## Requisitos
 
 - Windows + Python 3.10+
 - `pip install -r requirements.txt`
-- **ffmpeg** no PATH (só para o som do "tela do PC na TV") — <https://ffmpeg.org>
+- **ffmpeg** no PATH (para capturar/enviar a tela com som) — <https://ffmpeg.org>
 - A TV e o PC na **mesma rede Wi-Fi**.
 
 ## Configuração
@@ -45,16 +46,16 @@ Na primeira conexão a TV mostra um aviso **"Permitir"** — aceite. O token de 
 
 ```sh
 python controle_tv.pyw          # abre o controle
-python tela_tv.py 8090          # (opcional) só o espelhamento, sem o controle
+python tela_dlna.py             # (opcional) só manda a tela pra TV; "python tela_dlna.py parar" desliga
 ```
 
-No controle, o botão **"Tela do PC na TV"** liga o espelhamento e abre o navegador da TV apontando
-pro PC. Se a TV deixar a imagem muda (política de autoplay), um ENTER pelo controle libera o som.
+No controle, o botão **"Tela do PC na TV"** acha a TV na rede e começa a transmitir a tela com som
+em poucos segundos; **"Encerrar tela do PC"** desliga. Ele espelha o monitor principal.
 
 ## Observações
 
-- O sincronismo imagem/som do espelhamento pode ficar levemente defasado — MJPEG não foi feito pra
-  isso, mas pra aula/vídeo costuma ficar bom.
+- Por ser DLNA, a TV costuma bufferizar: a tela pode aparecer com alguns segundos de atraso. Ótimo
+  pra assistir vídeo/aula; não serve pra jogo ou coisa que precise de reação imediata.
 - O MAC, o token e o último IP da TV ficam em arquivos locais que **não** são versionados.
 
 ## Licença

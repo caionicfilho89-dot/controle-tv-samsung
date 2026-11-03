@@ -5,6 +5,9 @@ ultimo_ip.txt
 config.json
 erros.log
 
+# estado em tempo de execução
+dlna_port.txt
+
 # cache do Python
 __pycache__/
 *.pyc
