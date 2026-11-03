@@ -1,0 +1,6 @@
+PyQt6
+websocket-client
+mss
+Pillow
+soundcard
+numpy

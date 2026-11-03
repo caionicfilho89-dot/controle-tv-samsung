@@ -1,0 +1,15 @@
+# dados pessoais / estado local — NÃO publicar
+tv_config.json
+token.txt
+ultimo_ip.txt
+config.json
+erros.log
+
+# cache do Python
+__pycache__/
+*.pyc
+
+# legado: visualizador spacedesk (software de terceiros) e redirecionamento com IP pessoal
+viewer/
+redirect/
+tv.js
