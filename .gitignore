@@ -7,6 +7,7 @@ erros.log
 
 # estado em tempo de execução
 dlna_port.txt
+dlna_pid.txt
 
 # cache do Python
 __pycache__/

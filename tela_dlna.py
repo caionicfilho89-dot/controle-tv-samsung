@@ -22,6 +22,7 @@ from xml.sax.saxutils import escape
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT_FILE = os.path.join(HERE, "dlna_port.txt")
+PID_FILE = os.path.join(HERE, "dlna_pid.txt")
 SSDP_ST = "urn:schemas-upnp-org:service:AVTransport:1"
 DLNA_LIVE = "DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
 CREATE_NO_WINDOW = 0x08000000
@@ -213,33 +214,61 @@ class Server:
             self.proc = None
 
 
-def do_stop():
-    """Desliga uma transmissão que esteja rodando e manda a TV parar."""
+def _pid_alive(pid):
+    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], creationflags=CREATE_NO_WINDOW,
+                         capture_output=True, text=True).stdout
+    return str(pid) in out
+
+
+def _kill_previous():
+    """Encerra a transmissão anterior COM EDUCAÇÃO: pede /parar (ela manda Stop e fecha a conexão com
+    a TV direitinho) e só mata à força se não sair sozinha — matar à força deixa a TV travada (erro 705)."""
     try:
         port = int(open(PORT_FILE).read().strip())
-        urllib.request.urlopen(f"http://127.0.0.1:{port}/parar", timeout=3).read()
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/parar", timeout=2).read()
     except Exception:  # noqa: BLE001
         pass
+    try:
+        pid = int(open(PID_FILE).read().strip())
+    except Exception:  # noqa: BLE001
+        return
+    if pid == os.getpid():
+        return
+    for _ in range(16):   # até ~4s pra ela sair sozinha e soltar a TV
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.25)
+    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                   creationflags=CREATE_NO_WINDOW, capture_output=True)
+
+
+def do_stop():
+    """Desliga a transmissão e manda a TV parar."""
+    _kill_previous()
     ctrl = find_renderer()
     if ctrl:
         soap(ctrl, "Stop", timeout=8)
+    for fp in (PORT_FILE, PID_FILE):
+        try:
+            os.remove(fp)
+        except OSError:
+            pass
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "parar":
         do_stop()
         return 0
-    # trava de instância única: se já tem uma transmissão rodando, não sobe outra (evita duas brigando pela TV)
-    ctypes.windll.kernel32.CreateMutexW(None, False, "ClaudePC.TelaDLNA")
-    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        print("Já tem uma transmissão rodando.")
-        return 0
+    _kill_previous()   # mata qualquer transmissão anterior (inclusive travada) antes de começar
+    time.sleep(0.4)
     ctrl = find_renderer()
     if not ctrl:
         print("Não achei a TV na rede (SSDP). Ela está ligada e na mesma rede?")
         return 1
     srv = Server(audio="mudo" not in sys.argv)
     srv.serve()
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
     host = urllib.parse.urlsplit(ctrl).hostname
     link = f"http://{ip_towards(host)}:{srv.port}/screen.ts"
     print("Transmitindo tela em:", link, f"({srv.w}x{srv.h})", "com som" if srv.audio else "sem som")
@@ -265,6 +294,11 @@ def main():
     finally:
         soap(ctrl, "Stop", timeout=8)
         srv._kill()
+        for fp in (PORT_FILE, PID_FILE):
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
     return 0
 
 
