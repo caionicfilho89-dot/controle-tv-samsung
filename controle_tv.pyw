@@ -447,9 +447,9 @@ class RemoteWindow(QWidget):
         pc_row.addWidget(pc, 1)
         pc_row.addWidget(stop)
         root.addLayout(pc_row)
-        dark = IconButton("", "Apaga a tela do PC sem parar a transmissão (pra ver só na TV). Pra voltar, "
-                          "mexa o mouse. Atalho global: Ctrl+Alt+L", 42,
-                          text="🌙 Apagar monitor")
+        dark = IconButton("", "Escurece o monitor (brilho/contraste a 0) sem afetar a transmissão pra TV. "
+                          "Clica de novo pra clarear. Atalho global: Ctrl+Alt+L", 42,
+                          text="🌙 Escurecer monitor")
         dark.clicked.connect(self.toggle_monitor)
         root.addWidget(dark)
         root.addWidget(self.build_dpad_area(), alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -668,10 +668,11 @@ class RemoteWindow(QWidget):
         self.show_result(True, "Tela do PC encerrada")
 
     def toggle_monitor(self):
-        # apaga a tela do PC (DPMS) sem parar a transmissão. Pra voltar: mexer o mouse / teclar.
+        # escurece/clareia o monitor via DDC (brilho+contraste 0) — não afeta a transmissão. Interruptor.
+        dark = os.path.exists(os.path.join(HERE, "monitor_dark.json"))
         subprocess.Popen([sys.executable, os.path.join(HERE, "monitor_power.py")], cwd=HERE,
                          creationflags=subprocess.CREATE_NO_WINDOW)
-        self.show_result(True, "Monitor apagado — mexa o mouse pra voltar (a TV continua)")
+        self.show_result(True, "Clareando o monitor…" if dark else "Escurecendo o monitor (a TV continua)…")
 
     def send_text(self):
         t = self.text.text()
