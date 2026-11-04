@@ -1,5 +1,7 @@
 """Controle remoto da TV Samsung (Tizen) pelo PC."""
 import base64
+import ctypes
+from ctypes import wintypes
 import json
 import math
 import os
@@ -13,7 +15,7 @@ import time
 import urllib.request
 
 import websocket
-from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QAbstractNativeEventFilter, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QKeySequence, QPainter, QPainterPath,
                          QPen, QPixmap, QShortcut)
 from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -383,6 +385,27 @@ def section(text):
     return lbl
 
 
+WM_HOTKEY = 0x0312
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+VK_L = 0x4C
+
+
+class _HotkeyFilter(QAbstractNativeEventFilter):
+    """Pega o Ctrl+Alt+L global (funciona mesmo com o monitor apagado e o app sem foco)."""
+
+    def __init__(self, cb):
+        super().__init__()
+        self.cb = cb
+
+    def nativeEventFilter(self, etype, message):
+        if etype == b"windows_generic_MSG":
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == WM_HOTKEY and msg.wParam == 1:
+                self.cb()
+        return False, 0
+
+
 class RemoteWindow(QWidget):
     result = pyqtSignal(bool, str)
     status = pyqtSignal(bool, object)
@@ -398,6 +421,15 @@ class RemoteWindow(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet(f"QWidget {{ background:{T['bg']}; color:{T['fg']}; font-family:'Segoe UI'; }}"
                            f"QToolTip {{ background:{T['card']}; color:{T['fg']}; border:1px solid {T['btn_hi']}; }}")
+        # atalho global Ctrl+Alt+L: acende/apaga o monitor mesmo com a tela escura (sem precisar ver o botão)
+        self._hotkey = _HotkeyFilter(self.toggle_monitor)
+        app = QApplication.instance()
+        if app:
+            app.installNativeEventFilter(self._hotkey)
+        try:
+            ctypes.windll.user32.RegisterHotKey(None, 1, MOD_ALT | MOD_CONTROL, VK_L)
+        except Exception:  # noqa: BLE001
+            pass
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 14, 18, 12)
@@ -415,6 +447,11 @@ class RemoteWindow(QWidget):
         pc_row.addWidget(pc, 1)
         pc_row.addWidget(stop)
         root.addLayout(pc_row)
+        dark = IconButton("", "Apaga a tela do PC sem parar a transmissão (pra ver só na TV). Pra voltar, "
+                          "mexa o mouse. Atalho global: Ctrl+Alt+L", 42,
+                          text="🌙 Apagar monitor")
+        dark.clicked.connect(self.toggle_monitor)
+        root.addWidget(dark)
         root.addWidget(self.build_dpad_area(), alignment=Qt.AlignmentFlag.AlignHCenter)
         root.addLayout(self.build_media_row())
         root.addWidget(self.build_text_box())
@@ -629,6 +666,12 @@ class RemoteWindow(QWidget):
                          creationflags=subprocess.CREATE_NO_WINDOW)
         self.last_app = None
         self.show_result(True, "Tela do PC encerrada")
+
+    def toggle_monitor(self):
+        # apaga a tela do PC (DPMS) sem parar a transmissão. Pra voltar: mexer o mouse / teclar.
+        subprocess.Popen([sys.executable, os.path.join(HERE, "monitor_power.py")], cwd=HERE,
+                         creationflags=subprocess.CREATE_NO_WINDOW)
+        self.show_result(True, "Monitor apagado — mexa o mouse pra voltar (a TV continua)")
 
     def send_text(self):
         t = self.text.text()
